@@ -1,5 +1,6 @@
 import React from "react";
-import { AdConcept } from "../types";
+import { AdConcept, ModelErrorDetail } from "../types";
+import { ModelDiagnosticCard } from "./ModelDiagnosticCard";
 import {
   Sparkles,
   Palette,
@@ -16,6 +17,7 @@ interface PipelineProgressProps {
   currentAgent: "ideation" | "creative" | "copy" | "critic";
   currentIteration: number;
   statusMessage: string;
+  modelDiagnostics?: ModelErrorDetail[];
   logs: Array<{
     id: string;
     timestamp: string;
@@ -30,6 +32,7 @@ export const PipelineProgress: React.FC<PipelineProgressProps> = ({
   currentAgent,
   currentIteration,
   statusMessage,
+  modelDiagnostics,
   logs,
 }) => {
   const agents = [
@@ -179,6 +182,21 @@ export const PipelineProgress: React.FC<PipelineProgressProps> = ({
           );
         })}
       </div>
+
+      {/* Active Model Failure & Fallback Notices */}
+      {modelDiagnostics && modelDiagnostics.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
+            <AlertCircle className="w-4 h-4" />
+            <span>AI Model Alerts & Diagnostic Reports ({modelDiagnostics.length})</span>
+          </div>
+          <div className="space-y-2">
+            {modelDiagnostics.map((diag, idx) => (
+              <ModelDiagnosticCard key={idx} diagnostic={diag} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Real-time Status Card & Terminal Log */}
       <div className="bg-stone-950 border border-stone-800 rounded-xl p-5 shadow-2xl space-y-4">

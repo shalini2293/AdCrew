@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { AdConcept, HookType } from "../types";
+import { AdConcept, HookType, ModelErrorDetail } from "../types";
+import { ModelDiagnosticCard } from "./ModelDiagnosticCard";
 import {
   Sparkles,
   CheckCircle,
@@ -21,6 +22,7 @@ interface ConceptSelectionProps {
   onBackToBrief: () => void;
   isReshaping: boolean;
   batchIteration: number;
+  modelDiagnostic?: ModelErrorDetail;
 }
 
 export const ConceptSelection: React.FC<ConceptSelectionProps> = ({
@@ -32,6 +34,7 @@ export const ConceptSelection: React.FC<ConceptSelectionProps> = ({
   onBackToBrief,
   isReshaping,
   batchIteration,
+  modelDiagnostic,
 }) => {
   const [feedbackText, setFeedbackText] = useState("");
 
@@ -117,6 +120,13 @@ export const ConceptSelection: React.FC<ConceptSelectionProps> = ({
           <span>Edit Product Brief</span>
         </button>
       </div>
+
+      {/* Model Diagnostic / Fallback Notice */}
+      {modelDiagnostic && (
+        <div className="space-y-1">
+          <ModelDiagnosticCard diagnostic={modelDiagnostic} />
+        </div>
+      )}
 
       {/* Concept Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

@@ -1,15 +1,17 @@
 import React from "react";
-import { Sparkles, ShieldCheck, Layers, RefreshCw } from "lucide-react";
+import { Sparkles, ShieldCheck, Layers, RefreshCw, Cpu } from "lucide-react";
 
 interface NavbarProps {
   currentStep: "brief" | "concepts" | "pipeline" | "results";
   onReset: () => void;
+  onOpenModelStatus?: () => void;
   isGenerating?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentStep,
   onReset,
+  onOpenModelStatus,
   isGenerating,
 }) => {
   const steps = [
@@ -73,10 +75,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         {/* Reset & Status Actions */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {onOpenModelStatus && (
+            <button
+              type="button"
+              onClick={onOpenModelStatus}
+              className="flex items-center space-x-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-stone-800 bg-stone-900/60 text-stone-300 hover:text-stone-100 hover:bg-stone-900 hover:border-amber-500/30 transition-colors"
+              title="Inspect AI models and connectivity status"
+            >
+              <Cpu className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Model Diagnostics</span>
+              <span className="sm:hidden">Status</span>
+            </button>
+          )}
+
           <div className="hidden lg:flex items-center space-x-2 text-xs text-stone-400 border-r border-stone-800 pr-3">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Critic Gate: 4-Dimension Audit</span>
+            <span>Critic Gate</span>
           </div>
 
           <button

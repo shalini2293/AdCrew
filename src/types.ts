@@ -59,21 +59,45 @@ export interface CriticScores {
   copyFeedback: string;
 }
 
+export interface ModelErrorDetail {
+  agent: 'ideation' | 'creative' | 'copy' | 'critic';
+  modelAttempted: string;
+  status: 'failed' | 'fallback' | 'rate_limited' | 'quota_exceeded' | 'unavailable' | 'timeout';
+  errorCode?: number | string;
+  errorMessage: string;
+  friendlyReason: string;
+  suggestedAction: string;
+  timestamp: string;
+}
+
+export interface ModelHealthCheckResult {
+  model: string;
+  category: 'text' | 'image' | 'multimodal';
+  status: 'healthy' | 'degraded' | 'unavailable';
+  latencyMs?: number;
+  error?: string;
+  reason?: string;
+  details?: string;
+}
+
 export interface IterationAttempt {
   iteration: number; // 1, 2, or 3
   timestamp: number;
   imagePrompt: string;
   imageUrl: string;
+  imageSource?: 'imagen-3' | 'gemini-flash-image' | 'fallback-vector';
   headline: string;
   caption: string;
   ctaText: string;
   criticScore: CriticScores;
   passed: boolean;
+  modelDiagnostics?: ModelErrorDetail[];
 }
 
 export interface FinalAdAsset {
   concept: AdConcept;
   imageUrl: string;
+  imageSource?: 'imagen-3' | 'gemini-flash-image' | 'fallback-vector';
   headline: string;
   caption: string;
   ctaText: string;
@@ -93,6 +117,7 @@ export interface AdStudioRun {
   attempts: IterationAttempt[];
   bestAttemptIndex: number;
   finalAsset?: FinalAdAsset;
+  modelErrors?: ModelErrorDetail[];
 }
 
 export type AgentRole = 'ideation' | 'creative' | 'copy' | 'critic';

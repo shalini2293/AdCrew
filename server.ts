@@ -7,8 +7,9 @@ import {
   runCreativeAgent,
   runCopyAgent,
   runCriticAgent,
+  checkModelHealth,
 } from "./server/agents.js";
-import { AdStudioRun, IterationAttempt } from "./src/types.js";
+import { AdStudioRun, IterationAttempt, ModelErrorDetail } from "./src/types.js";
 
 dotenv.config();
 
@@ -32,6 +33,24 @@ app.get("/api/health", (_req, res) => {
 });
 
 /**
+ * Live Model Health & Connectivity Inspector
+ */
+app.get("/api/agents/model-status", async (_req, res) => {
+  try {
+    const models = await checkModelHealth();
+    return res.json({
+      status: "ok",
+      apiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
+      models,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: error?.message || "Failed to inspect model health status.",
+    });
+  }
+});
+
+/**
  * 1. Ideation Agent Endpoint
  * Generates 3-5 distinct ad concepts or reshapes them with user feedback
  */
@@ -45,14 +64,14 @@ app.post("/api/agents/ideate", async (req, res) => {
         .json({ error: "Missing required product or brand details." });
     }
 
-    const concepts = await runIdeationAgent({
+    const { concepts, modelDiagnostic } = await runIdeationAgent({
       product,
       brand,
       userFeedback,
       existingBatchIteration: existingBatchIteration || 1,
     });
 
-    return res.json({ concepts });
+    return res.json({ concepts, modelDiagnostic });
   } catch (error: any) {
     console.error("Ideation agent error:", error);
     return res.status(500).json({
@@ -98,7 +117,7 @@ app.post("/api/agents/execute-iteration", async (req, res) => {
     });
 
     // Step C: Critic Agent evaluates all dimensions
-    const criticScore = await runCriticAgent({
+    const criticResult = await runCriticAgent({
       concept,
       product,
       brand,
@@ -112,19 +131,27 @@ app.post("/api/agents/execute-iteration", async (req, res) => {
       },
     });
 
+    const diagnostics: ModelErrorDetail[] = [
+      ...(creativeResult.modelDiagnostics || []),
+      ...(copyResult.modelDiagnostic ? [copyResult.modelDiagnostic] : []),
+      ...(criticResult.modelDiagnostic ? [criticResult.modelDiagnostic] : []),
+    ];
+
     const attempt: IterationAttempt = {
       iteration,
       timestamp: Date.now(),
       imagePrompt: creativeResult.imagePrompt,
       imageUrl: creativeResult.imageUrl,
+      imageSource: creativeResult.imageSource,
       headline: copyResult.headline,
       caption: copyResult.caption,
       ctaText: copyResult.ctaText,
-      criticScore,
-      passed: criticScore.passed,
+      criticScore: criticResult.scores,
+      passed: criticResult.scores.passed,
+      modelDiagnostics: diagnostics.length > 0 ? diagnostics : undefined,
     };
 
-    return res.json({ attempt, passed: criticScore.passed });
+    return res.json({ attempt, passed: criticResult.scores.passed });
   } catch (error: any) {
     console.error("Execute iteration error:", error);
     return res.status(500).json({
@@ -147,6 +174,7 @@ app.post("/api/agents/run-pipeline", async (req, res) => {
 
     const runId = `run-${Date.now()}`;
     const attempts: IterationAttempt[] = [];
+    const allRunModelErrors: ModelErrorDetail[] = [];
     const MAX_ITERATIONS = 3;
 
     let currentIteration = 1;
@@ -166,6 +194,9 @@ app.post("/api/agents/run-pipeline", async (req, res) => {
         iteration: currentIteration,
         criticFeedback: lastCreativeFeedback,
       });
+      if (creativeResult.modelDiagnostics?.length) {
+        allRunModelErrors.push(...creativeResult.modelDiagnostics);
+      }
 
       // Copy Agent
       const copyResult = await runCopyAgent({
@@ -176,9 +207,12 @@ app.post("/api/agents/run-pipeline", async (req, res) => {
         iteration: currentIteration,
         criticFeedback: lastCopyFeedback,
       });
+      if (copyResult.modelDiagnostic) {
+        allRunModelErrors.push(copyResult.modelDiagnostic);
+      }
 
       // Critic Agent
-      const criticScore = await runCriticAgent({
+      const criticResult = await runCriticAgent({
         concept,
         product,
         brand,
@@ -191,32 +225,43 @@ app.post("/api/agents/run-pipeline", async (req, res) => {
           ctaText: copyResult.ctaText,
         },
       });
+      if (criticResult.modelDiagnostic) {
+        allRunModelErrors.push(criticResult.modelDiagnostic);
+      }
+
+      const iterationDiagnostics: ModelErrorDetail[] = [
+        ...(creativeResult.modelDiagnostics || []),
+        ...(copyResult.modelDiagnostic ? [copyResult.modelDiagnostic] : []),
+        ...(criticResult.modelDiagnostic ? [criticResult.modelDiagnostic] : []),
+      ];
 
       const attemptRecord: IterationAttempt = {
         iteration: currentIteration,
         timestamp: Date.now(),
         imagePrompt: creativeResult.imagePrompt,
         imageUrl: creativeResult.imageUrl,
+        imageSource: creativeResult.imageSource,
         headline: copyResult.headline,
         caption: copyResult.caption,
         ctaText: copyResult.ctaText,
-        criticScore,
-        passed: criticScore.passed,
+        criticScore: criticResult.scores,
+        passed: criticResult.scores.passed,
+        modelDiagnostics: iterationDiagnostics.length > 0 ? iterationDiagnostics : undefined,
       };
 
       attempts.push(attemptRecord);
 
-      if (criticScore.passed) {
+      if (criticResult.scores.passed) {
         isApproved = true;
         passAttemptNumber = currentIteration;
         console.log(`[AdCrew] Passed Quality Gate at iteration #${currentIteration}!`);
         break;
       } else {
         console.log(
-          `[AdCrew] Failed Quality Gate at iteration #${currentIteration}. Critic feedback: ${criticScore.summary}`
+          `[AdCrew] Failed Quality Gate at iteration #${currentIteration}. Critic feedback: ${criticResult.scores.summary}`
         );
-        lastCreativeFeedback = criticScore.creativeFeedback;
-        lastCopyFeedback = criticScore.copyFeedback;
+        lastCreativeFeedback = criticResult.scores.creativeFeedback;
+        lastCopyFeedback = criticResult.scores.copyFeedback;
         currentIteration++;
       }
     }
@@ -242,9 +287,11 @@ app.post("/api/agents/run-pipeline", async (req, res) => {
       passAttemptNumber,
       attempts,
       bestAttemptIndex: bestIndex,
+      modelErrors: allRunModelErrors.length > 0 ? allRunModelErrors : undefined,
       finalAsset: {
         concept,
         imageUrl: chosenAttempt.imageUrl,
+        imageSource: chosenAttempt.imageSource,
         headline: chosenAttempt.headline,
         caption: chosenAttempt.caption,
         ctaText: chosenAttempt.ctaText,
@@ -259,9 +306,9 @@ app.post("/api/agents/run-pipeline", async (req, res) => {
 
     return res.json(finalStudioRun);
   } catch (error: any) {
-    console.error("Pipeline execution error:", error);
+    console.error("Run pipeline execution error:", error);
     return res.status(500).json({
-      error: error?.message || "Pipeline execution failed.",
+      error: error?.message || "Failed to execute multi-agent creative studio pipeline.",
     });
   }
 });

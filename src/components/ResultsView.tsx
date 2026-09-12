@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { AdStudioRun, IterationAttempt } from "../types";
 import { CriticScoreCard } from "./CriticScoreCard";
+import { ModelDiagnosticCard } from "./ModelDiagnosticCard";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -16,6 +17,7 @@ import {
   ShieldAlert,
   Clock,
   ArrowRight,
+  Cpu,
 } from "lucide-react";
 
 interface ResultsViewProps {
@@ -164,6 +166,18 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ run, onReset }) => {
               {/* Hook Badge Overlay */}
               <div className="absolute top-3 left-3 bg-stone-950/85 backdrop-blur-sm border border-stone-800 px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider text-amber-300 shadow-lg">
                 {run.concept.hookType}
+              </div>
+
+              {/* Image Engine Badge */}
+              <div className="absolute top-3 right-3 bg-stone-950/85 backdrop-blur-sm border border-stone-800 px-2.5 py-1 rounded-full text-[10px] font-mono flex items-center space-x-1 shadow-lg">
+                <Cpu className="w-3 h-3 text-amber-400" />
+                <span className="text-stone-300">
+                  {activeAttempt.imageSource === "imagen-3"
+                    ? "Imagen 3 (Photorealistic)"
+                    : activeAttempt.imageSource === "gemini-flash-image"
+                    ? "Flash Image Gen"
+                    : "Vector Graphic Art"}
+                </span>
               </div>
 
               {/* Quick Download Overlay on Hover */}
@@ -349,6 +363,28 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ run, onReset }) => {
             title={`Self-Evaluating Critic Audit (Attempt #${activeAttempt.iteration})`}
             isDetailed={true}
           />
+
+          {/* Model Status & Error Diagnostics for this attempt or pipeline */}
+          {(activeAttempt.modelDiagnostics && activeAttempt.modelDiagnostics.length > 0) ||
+          (run.modelErrors && run.modelErrors.length > 0) ? (
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2 text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
+                <AlertTriangle className="w-4 h-4" />
+                <span>
+                  Model Execution Diagnostics & Fallback Notes (
+                  {(activeAttempt.modelDiagnostics || run.modelErrors || []).length}
+                  )
+                </span>
+              </div>
+              <div className="space-y-2.5">
+                {(activeAttempt.modelDiagnostics || run.modelErrors || []).map(
+                  (diag, dIdx) => (
+                    <ModelDiagnosticCard key={dIdx} diagnostic={diag} />
+                  )
+                )}
+              </div>
+            </div>
+          ) : null}
 
           {/* Creative Prompt Transparency */}
           <div className="bg-stone-900/70 border border-stone-800 rounded-xl p-4 space-y-2">
