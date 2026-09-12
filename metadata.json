@@ -1,0 +1,7 @@
+{
+  "name": "AdCrew",
+  "description": "Multi-agent AI ad-creative studio with human-in-the-loop concept review and a self-evaluating critic gate.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
