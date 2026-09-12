@@ -233,31 +233,49 @@ flowchart TD
 | Agent | Core Responsibility | Model Engine | Output |
 | :--- | :--- | :--- | :--- |
 | **Ideation Agent** | Drafts hook-driven concept angles, balances strategic variety, and reshapes ideas based on user critiques. | `gemini-3.8-flash` | Array of `AdConcept` objects with hooks, message angles, visual directions, and CTAs. |
-| **Creative Agent** | Translates concept visual direction into detailed art direction prompts and generates photorealistic images. | `Pollinations.ai (Flux)` *(primary, zero-quota)* + `imagen-3.0-generate-002` + vector fallback | High-res ad image URL, prompt specification, and engine provenance badge. |
+| **Creative Agent** | Translates concept visual direction into detailed art direction prompts and generates photorealistic images. | **Multi-Model Cascade**: Pollinations Turbo/Flux &rarr; Google Imagen 3 &rarr; Commercial Studio Photo Catalog &rarr; Vector Studio | High-res ad image URL, prompt specification, engine provenance badge, and model opting controls. |
 | **Copy Agent** | Crafts persuasive headlines, conversational captions, and targeted action buttons tuned to brand voice. | `gemini-3.8-flash` | Headline, body caption, and button CTA text. |
-| **Critic Agent** | Impartial gatekeeper auditing visual quality, brand alignment, product fidelity, and audience resonance. | `gemini-3.8-flash` | Detailed rubric scores (0–10), pass/fail verdict, and actionable revision instructions. |
+| **Critic Agent** | Impartial gatekeeper auditing visual quality, brand alignment, product fidelity, and audience resonance. | `gemini-3.8-flash` (multimodal) | Detailed rubric scores (0–10), pass/fail verdict, and actionable revision instructions. |
 
 ---
 
-## 📐 Self-Evaluating Critic Gate Rubric
+## 🎨 Visual Engine & Model Cascading Architecture
 
-The Critic agent evaluates every attempt against four isolated criteria:
+To guarantee the user always sees high-resolution creative assets—even under heavy API throttling, rate limits, or external server downtime—AdCrew features a **4-tier visual engine cascade**:
 
-1. **Aesthetic Quality (0–10)**: Composition, lighting, visual clarity, professional polish, and negative space balance.
-2. **Brand Fit (0–10)**: Strict adherence to defined brand tone (e.g., *Minimalist*, *Playful*, *Executive*), vocabulary, and benchmark reference ads.
-3. **Product Faithfulness (0–10)**: **Non-compensable**. The ad must honestly depict the product's actual purpose and features without deceptive claims or phantom capabilities.
-4. **Target Audience Sentiment (0–10)**: Likelihood of captivating the target demographic without alienating, boring, or confusing viewers.
+1. **Pollinations Turbo & Flux (`pollinations-turbo`, `pollinations-flux`)**:
+   - Zero-quota, unauthenticated image generation API using state-of-the-art diffusion models.
+   - Generates images in 2–4 seconds without consuming Gemini API tokens or hitting rate limits.
 
-> **Quality Gate Threshold**: An attempt only earns the **Gate Passed** certification if all four scores meet or exceed **7.0/10**.
+2. **Google Imagen 3 (`imagen-3.0-generate-002`)**:
+   - Google's premier photorealistic text-to-image foundation model via the `@google/genai` TypeScript SDK.
+   - Automatically engaged when requested or when ultra-fine commercial art direction is required.
+
+3. **Commercial Studio Photography Catalog (`commercial-photo`)**:
+   - A curated, verified catalog of 1080p high-resolution commercial studio photographs indexed by product category (ergonomic furniture, cosmetics, specialty coffee, consumer tech, fashion, wellness).
+   - Serves as an instant, zero-latency guarantee that the user never encounters a blank image box.
+
+4. **AdCrew Vector Studio Engine (`fallback-vector`)**:
+   - Procedural SVG vector generation with custom brand gradients, badge stamps, and technical art direction specs.
+
+### 🎛️ Dynamic Model Opting & Switching
+In the **Results Screen**, users can click the **Opt for Different Visual Model** control to switch between:
+- **Studio Photo** (Guaranteed 1080p authentic commercial photography)
+- **Pollinations Turbo** (Fast 2-second AI image synthesis)
+- **Pollinations Flux** (Deep photorealistic diffusion)
+- **Google Imagen 3** (Photorealistic generative AI)
+
+The ad mockup and provenance badges update immediately without requiring a full re-run.
 
 ---
 
 ## 🛡️ Model Resilience & Error Diagnostics
 
-AdCrew features built-in fault tolerance to handle external API fluctuations:
+AdCrew features built-in fault tolerance to handle external API fluctuations with total transparency:
 
-- **Categorized Diagnostics**: Errors are intercepted and classified into `rate_limited`, `quota_exceeded`, `unavailable`, `timeout`, or `failed`.
-- **Friendly Explanations & Actionable Advice**: Instead of raw HTTP error codes, users receive clear guidance (e.g., *"API rate limits reached on Imagen 3; automatic vector art fallback activated so your review loop can proceed"*).
+- **Categorized Diagnostics**: Errors and status shifts are intercepted and classified into `rate_limited`, `quota_exceeded`, `unavailable`, `timeout`, or `failed`.
+- **Friendly Explanations & Actionable Advice**: Instead of cryptic HTTP status codes, users receive clear explanations in the UI (e.g., *"Pollinations.ai returned 429 Too Many Requests; automatically cascaded to Commercial Studio Photography Catalog so your ad mockup is visible immediately"*).
+- **Diagnostics Dashboard & Badges**: Every iteration displays all underlying model attempts, latencies, failure causes, and automatic fallback actions taken.
 - **Procedural Vector Graphic Engine**: If Imagen 3 generation is unavailable or lacks project quota, AdCrew immediately synthesizes an SVG graphic adhering to the exact concept visual direction and color palette.
 - **Model Health Inspector**: Clicking **Model Diagnostics** in the top navigation opens a live diagnostic drawer showing model readiness, ping latency, and Gemini API key status.
 

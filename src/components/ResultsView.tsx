@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { AdStudioRun, IterationAttempt } from "../types";
+import React, { useState, useEffect } from "react";
+import { AdStudioRun, IterationAttempt, ModelErrorDetail } from "../types";
 import { CriticScoreCard } from "./CriticScoreCard";
 import { ModelDiagnosticCard } from "./ModelDiagnosticCard";
 import {
@@ -18,6 +18,10 @@ import {
   Clock,
   ArrowRight,
   Cpu,
+  Camera,
+  Zap,
+  SlidersHorizontal,
+  Loader2,
 } from "lucide-react";
 
 interface ResultsViewProps {
@@ -37,6 +41,39 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ run, onReset }) => {
   const activeAttempt: IterationAttempt =
     run.attempts[activeIterationIdx] || run.attempts[0];
 
+  // Dynamic overrides per iteration when user opts for a different model
+  const [overriddenImages, setOverriddenImages] = useState<{
+    [idx: number]: {
+      url: string;
+      source: string;
+      diagnostics?: ModelErrorDetail[];
+    };
+  }>({});
+
+  const [isSwitchingModel, setIsSwitchingModel] = useState(false);
+  const [activeSwitchModel, setActiveSwitchModel] = useState<string | null>(null);
+  const [modelSwitchToast, setModelSwitchToast] = useState<{
+    type: "success" | "warning";
+    message: string;
+  } | null>(null);
+
+  const displayImageUrl =
+    overriddenImages[activeIterationIdx]?.url || activeAttempt.imageUrl;
+  const displayImageSource =
+    overriddenImages[activeIterationIdx]?.source || activeAttempt.imageSource;
+  const currentDiagnostics = [
+    ...(activeAttempt.modelDiagnostics || run.modelErrors || []),
+    ...(overriddenImages[activeIterationIdx]?.diagnostics || []),
+  ];
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (modelSwitchToast) {
+      const t = setTimeout(() => setModelSwitchToast(null), 4500);
+      return () => clearTimeout(t);
+    }
+  }, [modelSwitchToast]);
+
   const handleCopyCopy = () => {
     const textToCopy = `HEADLINE:\n${activeAttempt.headline}\n\nBODY CAPTION:\n${activeAttempt.caption}\n\nCTA:\n${activeAttempt.ctaText}`;
     navigator.clipboard.writeText(textToCopy);
@@ -46,11 +83,87 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ run, onReset }) => {
 
   const handleDownloadImage = () => {
     const link = document.createElement("a");
-    link.href = activeAttempt.imageUrl;
+    link.href = displayImageUrl;
     link.download = `adcrew-${run.concept.hookType}-iteration${activeAttempt.iteration}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleSwitchModel = async (newModelChoice: string) => {
+    try {
+      setIsSwitchingModel(true);
+      setActiveSwitchModel(newModelChoice);
+
+      const res = await fetch("/api/agents/switch-image-model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product: run.product,
+          concept: run.concept,
+          brand: run.brand,
+          modelChoice: newModelChoice,
+          iteration: activeAttempt.iteration,
+          refinedPrompt: activeAttempt.imagePrompt,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      setOverriddenImages((prev) => ({
+        ...prev,
+        [activeIterationIdx]: {
+          url: data.imageUrl,
+          source: data.imageSource,
+          diagnostics: data.modelDiagnostics,
+        },
+      }));
+
+      const modelLabel =
+        data.imageSource === "commercial-photo"
+          ? "Commercial Studio Photography (1080p)"
+          : data.imageSource === "pollinations-turbo"
+          ? "Pollinations Turbo (Fast AI)"
+          : data.imageSource === "pollinations-flux"
+          ? "Pollinations Flux (Deep AI)"
+          : data.imageSource === "imagen-3"
+          ? "Google Imagen 3"
+          : "Vector Graphic Art";
+
+      setModelSwitchToast({
+        type: "success",
+        message: `Opted for ${modelLabel}. Ad mockup updated immediately!`,
+      });
+    } catch (err: any) {
+      console.error("Error switching image model:", err);
+      setModelSwitchToast({
+        type: "warning",
+        message: `Could not reach ${newModelChoice}. Retained current image.`,
+      });
+    } finally {
+      setIsSwitchingModel(false);
+      setActiveSwitchModel(null);
+    }
+  };
+
+  const getImageSourceLabel = (src?: string) => {
+    switch (src) {
+      case "commercial-photo":
+        return "Commercial Studio Photo (1080p)";
+      case "pollinations-turbo":
+        return "Pollinations Turbo (Fast AI)";
+      case "pollinations-flux":
+        return "Pollinations Flux (Deep AI)";
+      case "imagen-3":
+        return "Google Imagen 3 (Photoreal)";
+      case "gemini-flash-image":
+        return "Gemini Flash Image Gen";
+      default:
+        return "Vector Graphic Art";
+    }
   };
 
   return (
@@ -157,9 +270,13 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ run, onReset }) => {
             {/* Ad Visual Image */}
             <div className="relative aspect-square w-full bg-stone-900 overflow-hidden group">
               <img
-                src={activeAttempt.imageUrl}
+                src={displayImageUrl}
                 alt={activeAttempt.headline}
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  console.warn("Mockup image failed to render, applying commercial photo fallback");
+                  e.currentTarget.src = "https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?auto=format&fit=crop&w=1080&q=85";
+                }}
                 className="w-full h-full object-cover"
               />
 
@@ -172,13 +289,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ run, onReset }) => {
               <div className="absolute top-3 right-3 bg-stone-950/85 backdrop-blur-sm border border-stone-800 px-2.5 py-1 rounded-full text-[10px] font-mono flex items-center space-x-1 shadow-lg">
                 <Cpu className="w-3 h-3 text-amber-400" />
                 <span className="text-stone-300">
-                  {activeAttempt.imageSource === "pollinations-flux"
-                    ? "Pollinations Flux (Zero-Quota AI)"
-                    : activeAttempt.imageSource === "imagen-3"
-                    ? "Imagen 3 (Photorealistic)"
-                    : activeAttempt.imageSource === "gemini-flash-image"
-                    ? "Flash Image Gen"
-                    : "Vector Graphic Art"}
+                  {getImageSourceLabel(displayImageSource)}
                 </span>
               </div>
 
@@ -239,6 +350,115 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ run, onReset }) => {
               <Download className="w-3.5 h-3.5 text-amber-400" />
               <span>Download Image</span>
             </button>
+          </div>
+
+          {/* Model Engine Switcher Panel */}
+          <div className="bg-stone-900/80 border border-stone-800 rounded-xl p-4 space-y-3 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-xs font-semibold text-stone-200">
+                <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+                <span>Opt for Different Visual Model</span>
+              </div>
+              <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                {isSwitchingModel ? "Switching..." : getImageSourceLabel(displayImageSource)}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-stone-400 leading-relaxed">
+              If an image generation model was unavailable, throttled, or didn't meet visual criteria, opt for an alternate model below to re-render this mockup instantly:
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={isSwitchingModel}
+                onClick={() => handleSwitchModel("commercial-photo")}
+                className={`p-2.5 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                  displayImageSource === "commercial-photo"
+                    ? "bg-amber-500/15 border-amber-500/50 text-amber-200 shadow-sm"
+                    : "bg-stone-950/70 border-stone-800 hover:border-stone-700 text-stone-300"
+                }`}
+              >
+                <div className="flex items-center space-x-1.5 font-bold text-xs">
+                  <Camera className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Studio Photo</span>
+                </div>
+                <span className="text-[10px] text-stone-400 mt-1">Guaranteed 1080p Photo</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isSwitchingModel}
+                onClick={() => handleSwitchModel("pollinations-turbo")}
+                className={`p-2.5 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                  displayImageSource === "pollinations-turbo"
+                    ? "bg-purple-500/15 border-purple-500/50 text-purple-200 shadow-sm"
+                    : "bg-stone-950/70 border-stone-800 hover:border-stone-700 text-stone-300"
+                }`}
+              >
+                <div className="flex items-center space-x-1.5 font-bold text-xs">
+                  <Zap className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Pollinations Turbo</span>
+                </div>
+                <span className="text-[10px] text-stone-400 mt-1">Fast 2s AI Generation</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isSwitchingModel}
+                onClick={() => handleSwitchModel("pollinations-flux")}
+                className={`p-2.5 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                  displayImageSource === "pollinations-flux"
+                    ? "bg-indigo-500/15 border-indigo-500/50 text-indigo-200 shadow-sm"
+                    : "bg-stone-950/70 border-stone-800 hover:border-stone-700 text-stone-300"
+                }`}
+              >
+                <div className="flex items-center space-x-1.5 font-bold text-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Pollinations Flux</span>
+                </div>
+                <span className="text-[10px] text-stone-400 mt-1">Deep Photoreal AI</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isSwitchingModel}
+                onClick={() => handleSwitchModel("imagen-3")}
+                className={`p-2.5 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                  displayImageSource === "imagen-3"
+                    ? "bg-sky-500/15 border-sky-500/50 text-sky-200 shadow-sm"
+                    : "bg-stone-950/70 border-stone-800 hover:border-stone-700 text-stone-300"
+                }`}
+              >
+                <div className="flex items-center space-x-1.5 font-bold text-xs">
+                  <Cpu className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Google Imagen 3</span>
+                </div>
+                <span className="text-[10px] text-stone-400 mt-1">Direct Gemini API</span>
+              </button>
+            </div>
+
+            {isSwitchingModel && (
+              <div className="flex items-center space-x-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg">
+                <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                <span>
+                  Opting for {activeSwitchModel}... If model is unavailable or queued, will auto-cascade to alternate engine.
+                </span>
+              </div>
+            )}
+
+            {modelSwitchToast && (
+              <div
+                className={`text-xs p-2.5 rounded-lg border flex items-center space-x-1.5 ${
+                  modelSwitchToast.type === "success"
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                    : "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{modelSwitchToast.message}</span>
+              </div>
+            )}
           </div>
 
           {/* Asset Lineage Card */}
@@ -367,23 +587,18 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ run, onReset }) => {
           />
 
           {/* Model Status & Error Diagnostics for this attempt or pipeline */}
-          {(activeAttempt.modelDiagnostics && activeAttempt.modelDiagnostics.length > 0) ||
-          (run.modelErrors && run.modelErrors.length > 0) ? (
+          {currentDiagnostics.length > 0 ? (
             <div className="space-y-3">
               <div className="flex items-center space-x-2 text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
                 <AlertTriangle className="w-4 h-4" />
                 <span>
-                  Model Execution Diagnostics & Fallback Notes (
-                  {(activeAttempt.modelDiagnostics || run.modelErrors || []).length}
-                  )
+                  Model Execution Diagnostics & Fallback Notes ({currentDiagnostics.length})
                 </span>
               </div>
               <div className="space-y-2.5">
-                {(activeAttempt.modelDiagnostics || run.modelErrors || []).map(
-                  (diag, dIdx) => (
-                    <ModelDiagnosticCard key={dIdx} diagnostic={diag} />
-                  )
-                )}
+                {currentDiagnostics.map((diag, dIdx) => (
+                  <ModelDiagnosticCard key={dIdx} diagnostic={diag} />
+                ))}
               </div>
             </div>
           ) : null}

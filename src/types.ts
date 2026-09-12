@@ -85,7 +85,7 @@ export interface IterationAttempt {
   timestamp: number;
   imagePrompt: string;
   imageUrl: string;
-  imageSource?: 'pollinations-flux' | 'imagen-3' | 'gemini-flash-image' | 'fallback-vector';
+  imageSource?: 'pollinations-flux' | 'pollinations-turbo' | 'imagen-3' | 'gemini-flash-image' | 'commercial-photo' | 'fallback-vector';
   headline: string;
   caption: string;
   ctaText: string;
@@ -97,7 +97,7 @@ export interface IterationAttempt {
 export interface FinalAdAsset {
   concept: AdConcept;
   imageUrl: string;
-  imageSource?: 'pollinations-flux' | 'imagen-3' | 'gemini-flash-image' | 'fallback-vector';
+  imageSource?: 'pollinations-flux' | 'pollinations-turbo' | 'imagen-3' | 'gemini-flash-image' | 'commercial-photo' | 'fallback-vector';
   headline: string;
   caption: string;
   ctaText: string;

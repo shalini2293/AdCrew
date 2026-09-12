@@ -8,6 +8,7 @@ import {
   runCopyAgent,
   runCriticAgent,
   checkModelHealth,
+  generateImageWithModel,
 } from "./server/agents.js";
 import { AdStudioRun, IterationAttempt, ModelErrorDetail } from "./src/types.js";
 
@@ -309,6 +310,48 @@ app.post("/api/agents/run-pipeline", async (req, res) => {
     console.error("Run pipeline execution error:", error);
     return res.status(500).json({
       error: error?.message || "Failed to execute multi-agent creative studio pipeline.",
+    });
+  }
+});
+
+/**
+ * 4. Image Model Switcher / Dynamic Generator Endpoint
+ * Allows user to opt for a different model if the current model fails or is throttled.
+ */
+app.post("/api/agents/switch-image-model", async (req, res) => {
+  try {
+    const {
+      product,
+      concept,
+      brand,
+      modelChoice = "commercial-photo",
+      iteration = 1,
+      refinedPrompt,
+    } = req.body;
+
+    if (!product || !concept || !brand) {
+      return res.status(400).json({ error: "Missing required product or concept metadata." });
+    }
+
+    console.log(`[AdCrew] User opted to switch image model to: ${modelChoice}`);
+    const result = await generateImageWithModel({
+      product,
+      concept,
+      brand,
+      modelChoice,
+      iteration,
+      refinedPrompt,
+    });
+
+    return res.json({
+      imageUrl: result.imageUrl,
+      imageSource: result.imageSource,
+      modelDiagnostics: result.modelDiagnostics,
+    });
+  } catch (error: any) {
+    console.error("Switch image model error:", error);
+    return res.status(500).json({
+      error: error?.message || "Failed to switch image generation model.",
     });
   }
 });
