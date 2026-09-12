@@ -46,10 +46,11 @@ AdCrew bridges the gap between autonomous AI generation and brand control throug
   - When feedback is submitted, the Ideation agent reshapes the angles into a new batch of 3–5 structured concepts that directly incorporate the user's direction.
   - Repeats until the user approves a direction.
 
-- **Creative Visual Generation (Imagen 3 & Vector Engine)**:
+- **Creative Visual Generation (Pollinations.ai Flux & Imagen 3)**:
   - Formulates photorealistic art direction prompts derived from the confirmed concept, product brief, and reference brand benchmarks.
-  - Generates full-resolution ad visuals via Google's `imagen-3.0-generate-002` API.
-  - Automatic fallback to high-resolution procedural vector artwork if API quota or rate limits occur.
+  - **Primary Engine**: Uses **Pollinations.ai (Flux)** as the zero-quota, free, high-fidelity photorealistic image generator to eliminate rate limit barriers and API key quota exhaustion.
+  - **Secondary High-End Engine**: Cascades to Google's `imagen-3.0-generate-002` when available.
+  - **Zero-Downtime Backup**: Automatic fallback to high-resolution procedural vector artwork if network or platform connectivity drops.
 
 - **Copy Agent (Gemini 3.8 Flash)**:
   - Generates synchronized headline, persuasive body caption, and high-intent call-to-action button text strictly calibrated to brand voice and target hook.
@@ -232,7 +233,7 @@ flowchart TD
 | Agent | Core Responsibility | Model Engine | Output |
 | :--- | :--- | :--- | :--- |
 | **Ideation Agent** | Drafts hook-driven concept angles, balances strategic variety, and reshapes ideas based on user critiques. | `gemini-3.8-flash` | Array of `AdConcept` objects with hooks, message angles, visual directions, and CTAs. |
-| **Creative Agent** | Translates concept visual direction into detailed art direction prompts and generates photorealistic images. | `imagen-3.0-generate-002` *(with vector fallback)* | High-res ad image URL, prompt specification, and engine provenance badge. |
+| **Creative Agent** | Translates concept visual direction into detailed art direction prompts and generates photorealistic images. | `Pollinations.ai (Flux)` *(primary, zero-quota)* + `imagen-3.0-generate-002` + vector fallback | High-res ad image URL, prompt specification, and engine provenance badge. |
 | **Copy Agent** | Crafts persuasive headlines, conversational captions, and targeted action buttons tuned to brand voice. | `gemini-3.8-flash` | Headline, body caption, and button CTA text. |
 | **Critic Agent** | Impartial gatekeeper auditing visual quality, brand alignment, product fidelity, and audience resonance. | `gemini-3.8-flash` | Detailed rubric scores (0–10), pass/fail verdict, and actionable revision instructions. |
 

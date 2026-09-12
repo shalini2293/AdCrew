@@ -172,7 +172,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ run, onReset }) => {
               <div className="absolute top-3 right-3 bg-stone-950/85 backdrop-blur-sm border border-stone-800 px-2.5 py-1 rounded-full text-[10px] font-mono flex items-center space-x-1 shadow-lg">
                 <Cpu className="w-3 h-3 text-amber-400" />
                 <span className="text-stone-300">
-                  {activeAttempt.imageSource === "imagen-3"
+                  {activeAttempt.imageSource === "pollinations-flux"
+                    ? "Pollinations Flux (Zero-Quota AI)"
+                    : activeAttempt.imageSource === "imagen-3"
                     ? "Imagen 3 (Photorealistic)"
                     : activeAttempt.imageSource === "gemini-flash-image"
                     ? "Flash Image Gen"

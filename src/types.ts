@@ -85,7 +85,7 @@ export interface IterationAttempt {
   timestamp: number;
   imagePrompt: string;
   imageUrl: string;
-  imageSource?: 'imagen-3' | 'gemini-flash-image' | 'fallback-vector';
+  imageSource?: 'pollinations-flux' | 'imagen-3' | 'gemini-flash-image' | 'fallback-vector';
   headline: string;
   caption: string;
   ctaText: string;
@@ -97,7 +97,7 @@ export interface IterationAttempt {
 export interface FinalAdAsset {
   concept: AdConcept;
   imageUrl: string;
-  imageSource?: 'imagen-3' | 'gemini-flash-image' | 'fallback-vector';
+  imageSource?: 'pollinations-flux' | 'imagen-3' | 'gemini-flash-image' | 'fallback-vector';
   headline: string;
   caption: string;
   ctaText: string;
@@ -118,6 +118,7 @@ export interface AdStudioRun {
   bestAttemptIndex: number;
   finalAsset?: FinalAdAsset;
   modelErrors?: ModelErrorDetail[];
+  a2aTrace?: A2AMessage[];
 }
 
 export type AgentRole = 'ideation' | 'creative' | 'copy' | 'critic';
@@ -131,3 +132,51 @@ export interface AgentLogEntry {
   detail: string;
   status: 'info' | 'working' | 'success' | 'warning' | 'error';
 }
+
+// ----------------------------------------------------------------------------
+// GOOGLE ADK (Agent Development Kit) & A2A (Agent-to-Agent) Protocol Types
+// ----------------------------------------------------------------------------
+export type A2AMessageType =
+  | 'TASK_DELEGATE'
+  | 'TASK_RESULT'
+  | 'PEER_HANDOFF'
+  | 'CRITIQUE_REVISE'
+  | 'GATE_APPROVAL'
+  | 'GATE_REJECT'
+  | 'ORCHESTRATOR_SYNC';
+
+export interface A2AMessage {
+  id: string;
+  traceId: string;
+  timestamp: string;
+  sender: string; // e.g. "adk:orchestrator", "adk:creative-agent", "adk:critic-gate"
+  receiver: string; // e.g. "adk:copy-agent", "adk:critic-gate", "broadcast"
+  type: A2AMessageType;
+  action: string; // e.g. "generate_imagery", "audit_creatives", "revise_visual_angle"
+  summary: string;
+  payload: Record<string, any>;
+  metadata?: {
+    model?: string;
+    latencyMs?: number;
+    iteration?: number;
+    passed?: boolean;
+    dimensionsScored?: number;
+  };
+}
+
+export interface ADKAgentCard {
+  id: string;
+  name: string;
+  version: string;
+  role: string;
+  model: string;
+  capabilities: string[];
+  protocolsSupported: string[];
+  inputContract: string;
+  outputContract: string;
+  a2aEndpoints: {
+    inbox: string;
+    health: string;
+  };
+}
+

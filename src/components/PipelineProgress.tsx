@@ -49,7 +49,7 @@ export const PipelineProgress: React.FC<PipelineProgressProps> = ({
       id: "creative",
       name: "Creative Agent",
       role: "Visual Art Director",
-      model: "Imagen 3 / Flash Image",
+      model: "Pollinations Flux / Imagen 3",
       icon: Palette,
       color: "purple",
       description: "Generates high-fidelity visual asset.",
